@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FARMLYTICS – Multilingual AI Crop Advisor</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+  <style>
+    :root { --brand:#0a7b55; --brand-2:#f1f8f5; }
+    body{ background:#f7faf9; }
+    .navbar{ background:linear-gradient(90deg, var(--brand), #12845f); }
+    .navbar-brand{
+font-size: 28px;
+font-weight: 700;
+letter-spacing: 1px;
+}
+    /* Reduce navbar height */
+.navbar{
+padding-top: 10px;
+padding-bottom: 10px;
+padding-left:30px;
+padding-right:30px;
+}
+    /* Zoom effect for navbar buttons */
+.btn-outline-light{
+transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.btn-outline-light:hover{
+transform: scale(1.1);
+background-color: transparent !important;
+color: white !important;
+border-color: white !important;
+box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+transition: all 0.3s ease;
+}
+
+    .navbar-brand,.nav-link,.navbar .btn{ color:#fff !important; }
+    .hero{ background: radial-gradient(1000px 500px at 10% 10%, var(--brand-2), transparent),
+                         radial-gradient(800px 500px at 90% 0%, #e6f5ef, transparent); border-bottom:1px solid #e9f3ef; }
+    .card{
+border-radius:1rem;
+transition:all 0.35s ease;
+}
+
+.card:hover{
+transform:translateY(-8px) scale(1.02);
+box-shadow:0 20px 40px rgba(0,0,0,0.15);
+}
+    .badge-soft{ background:#e9f7f1; color:#0f6f50; }
+    .form-section-title{ font-weight:700; color:#0f6f50; }
+    .floating-save{ position:fixed; bottom:1rem; right:1rem; z-index:999; }
+    .toast-container{ z-index:1080; }
+    .muted{ color:#6b7b75; }
+    .stat{ font-size:1.1rem; font-weight:700; }
+    .stat small{ font-weight:500; color:#6b7b75; }
+    
+
+    /* Chatbox */
+    #chatbox{ position:fixed; bottom:100px; right:20px; width:340px; max-height:520px; background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.2); display:none; flex-direction:column; overflow:hidden; }
+    #chat-header{ background:#198754; color:#fff; padding:6px 12px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+    #chat-messages{ flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .msg{ max-width:75%; padding:8px 12px; border-radius:12px; font-size:14px; line-height:1.4; display:inline-block; }
+    .user{ background:#d1e7dd; color:#0f5132; align-self:flex-end; border-bottom-right-radius:2px; text-align:right; }
+    .bot{ background:#e9ecef; color:#212529; align-self:flex-start; border-bottom-left-radius:2px; text-align:left; }
+    .msg-time{ display:block; font-size:11px; color:#6c757d; margin-top:3px; }
+    #chat-input{ display:flex; border-top:1px solid #ddd; gap:6px; padding:6px; }
+    #chat-input input{ flex:1; border:1px solid #e5e5e5; border-radius:8px; padding:8px; }
+    #chat-input button{ border:none; border-radius:8px; padding:8px 10px; }
+    #chat-toggle{ position:fixed; bottom:100px; right:20px; background:#198754; color:#fff; border-radius:50%; width:60px; height:60px; border:none; font-size:24px; box-shadow:0 4px 8px rgba(0,0,0,.2); }
+
+    /* Pill alerts */
+    .alert-dot{ width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:6px; }
+    .alert-ok{ background:#28a745; }
+    .alert-warn{ background:#ffc107; }
+    .alert-bad{ background:#dc3545; }
+    .footer-text {
+    color: #333;   /* darker grey */
+}
+#bg-video{
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    min-width: 100%;
+    min-height: 100%;
+    object-fit: cover;
+    z-index: -1;
+}
+.video-overlay{
+    position: fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(255,255,255,0.4);
+    z-index:-1;
+}
+.hero-title{
+opacity:0;
+transform:translateY(40px);
+animation:heroFade 1.2s ease forwards;
+}
+
+@keyframes heroFade{
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+#chat-toggle{
+animation:pulse 2s infinite;
+}
+
+@keyframes pulse{
+0%{
+box-shadow:0 0 0 0 rgba(25,135,84,0.7);
+}
+
+70%{
+box-shadow:0 0 0 15px rgba(25,135,84,0);
+}
+
+100%{
+box-shadow:0 0 0 0 rgba(25,135,84,0);
+}
+}
+    
+  </style>
+  <link rel="stylesheet"
+href="https://unpkg.com/aos@2.3.1/dist/aos.css"/>
+</head>
+<body>
+  <video autoplay muted loop id="bg-video">
+    <source src="farm1.mp4" type="video/mp4">
+</video>
+<div class="video-overlay"></div>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#"><i class="bi bi-flower3 me-2"></i>FARMLYTICS</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div id="nav" class="collapse navbar-collapse">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item"><a class="nav-link" href="#planner">Planner</a></li>
+          <li class="nav-item"><a class="nav-link" href="#results">Results</a></li>
+        </ul>
+        <div class="d-flex gap-2">
+          <button id="btnEnableLoc" class="btn btn-outline-light btn-sm" type="button"><i class="bi bi-geo-alt me-1"></i>Use My Location</button>
+          <button id="btnLoadPlans" class="btn btn-outline-light btn-sm" type="button"><i class="bi bi-archive me-1"></i>Saved Plans</button>
+          <button id="btnReset" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="hero py-5">
+    <div class="container">
+      <div class="row align-items-center g-4"data-aos="fade-up">
+        <div class="col-lg-7">
+          <h1 class="display-6 fw-bold text-dark hero-title">AI-Driven Smart Agri Guide</h1>
+          <p class="lead text-secondary mb-3" data-aos="fade-up"data-i18n="hero_tag">Enter crop, area, soil details, and get multilingual, location‑aware guidance: N‑P‑K plan, weather alerts, pest detection, and market prices.</p>
+          <div class="d-flex gap-2 flex-wrap"data-aos="fade-up">
+            <span class="badge rounded-pill badge-soft"><i class="bi bi-translate me-1"></i><span data-i18n="badge_multi">Multi‑language</span></span>
+            <span class="badge rounded-pill badge-soft"><i class="bi bi-mic me-1"></i><span data-i18n="badge_voice">Voice chat</span></span>
+            <span class="badge rounded-pill badge-soft"><i class="bi bi-cloud-sun me-1"></i><span data-i18n="badge_weather">Weather‑aware</span></span>
+            <span class="badge rounded-pill badge-soft"><i class="bi bi-camera me-1"></i><span data-i18n="badge_pest">Pest via image</span></span>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card shadow-sm"data-aos="fade-up">
+            <div class="card-body">
+              <div class="row g-2 align-items-end">
+                <div class="col-8">
+                  <label class="form-label" for="language" data-i18n="label_lang">Language</label>
+                  <select id="language" class="form-select"></select>
+                  </select>
+                </div>
+                <div class="col-4 text-end">
+                  <button id="btnExport" class="btn btn-outline-success w-100" type="button" data-bs-toggle="tooltip" data-bs-title="Download a JSON snapshot of your plan"><i class="bi bi-download"></i></button>
+                </div>
+              </div>
+              <small class="text-secondary" data-i18n="tip_pwa">Tip: Add this page to your home screen for quick offline access.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Planner -->
+  <main class="container my-4" id="planner">
+    <div class="row g-4"data-aos="fade-up">
+      <!-- Farm & Crop -->
+      <section class="col-lg-6">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white">
+            <h5 class="mb-0 form-section-title"><i class="bi bi-seedling me-2"></i><span data-i18n="sec_farm">Farm & Crop</span></h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label required" for="crop" data-i18n="label_crop">Crop</label>
+                <select id="crop" class="form-select" required>
+                  <option value="">Choose…</option>
+                  <option>Rice</option><option>Wheat</option><option>Maize</option><option>Millets</option><option>Cotton</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label required" for="season" data-i18n="label_season">Season</label>
+                <select id="season" class="form-select" required>
+                  <option>Kharif</option><option>Rabi</option><option>Zaid</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label required" for="area" data-i18n="label_area">Cultivation Area</label>
+                <div class="input-group">
+                  <input id="area" type="number" min="0" step="0.01" class="form-control" required>
+                  <select id="areaUnit" class="form-select" style="max-width:9rem;">
+                    <option value="acre" selected>Acre</option>
+                    <option value="hectare">Hectare</option>
+                  </select>
+                </div>
+                <div class="form-text" data-i18n="hint_area">1 hectare = 2.471 acres (auto‑converted).</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="location" data-i18n="label_loc">Location (optional)</label>
+                <input id="location" type="text" class="form-control" placeholder="District / State">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Soil -->
+      <section class="col-lg-6">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white">
+            <h5 class="mb-0 form-section-title"><i class="bi bi-droplet-half me-2"></i><span data-i18n="sec_soil">Soil Details</span></h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label required" for="ph">Soil pH</label>
+                <input id="ph" type="number" min="3" max="10" step="0.1" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label required" for="oc">Organic Carbon</label>
+                <select id="oc" class="form-select" required>
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="texture">Texture</label>
+                <select id="texture" class="form-select">
+                  <option>Loam</option><option>Clay</option><option>Sand</option><option>Sandy loam</option><option>Clay loam</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="ec">EC (dS/m)</label>
+                <input id="ec" type="number" min="0" step="0.01" class="form-control">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Market & Costs -->
+      <section class="col-12">
+        <div class="card shadow-sm"data-aos="fade-up">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <h5 class="mb-0 form-section-title"><i class="bi bi-cash-coin me-2"></i><span data-i18n="sec_market">Market & Costs</span></h5>
+            <small class="muted" data-i18n="note_prices">Prices in ₹; yield & price assumed per <b>quintal</b> (100 kg)</small>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label class="form-label required" for="marketPrice" data-i18n="label_mp">Market Price / Quintal</label>
+                <input id="marketPrice" type="number" min="0" step="1" class="form-control" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="seedCost">Seed Cost</label>
+                <input id="seedCost" type="number" min="0" step="1" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="fertCost">Fertilizer Budget</label>
+                <input id="fertCost" type="number" min="0" step="1" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="laborCost">Labour Cost</label>
+                <input id="laborCost" type="number" min="0" step="1" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="otherCost">Other Cost</label>
+                <input id="otherCost" type="number" min="0" step="1" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="baselineYield">Current Yield / Acre (q)</label>
+                <input id="baselineYield" type="number" min="0" step="0.1" class="form-control" placeholder="Optional">
+              </div>
+            </div>
+          </div>
+          <div class="card-footer bg-white text-end d-flex gap-2 justify-content-end flex-wrap">
+            <button id="btnMarketFetch" class="btn btn-outline-secondary btn-sm"><i class="bi bi-currency-rupee me-1"></i><span data-i18n="btn_market">Fetch Nearby Prices</span></button>
+            <button id="btnRecommend" class="btn btn-success"><i class="bi bi-magic me-1"></i><span data-i18n="btn_generate">Generate Plan</span></button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Results -->
+  <section class="container my-4" id="results" aria-live="polite">
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-beaker me-2"></i><span data-i18n="sec_fert">Fertilizer Recommendation</span></h5>
+            <span id="recBadge" class="badge text-bg-success d-none" data-i18n="badge_ready">Ready</span>
+          </div>
+          <div class="card-body">
+            <div id="recPanel" class="text-secondary" data-i18n="placeholder_run">Run <b>Generate Plan</b> to see recommendations.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="sec_fin">Yield & Finance</span></h5>
+            <div class="d-flex gap-2">
+              <button id="btnSavePlan" class="btn btn-outline-success btn-sm"><i class="bi bi-bookmark-plus me-1"></i><span data-i18n="btn_save">Save Plan</span></button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="financePanel" class="text-secondary" data-i18n="placeholder_proj">Projections will appear here.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weather + Alerts -->
+      <div class="col-xl-6">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <h6 class="mb-0"><i class="bi bi-cloud-sun me-2"></i><span data-i18n="sec_weather">Weather & Alerts</span></h6>
+            <small id="weatherLoc" class="text-secondary"></small>
+          </div>
+          <div class="card-body" id="weatherPanel">
+            <div class="text-secondary" data-i18n="placeholder_weather">Enable location to fetch forecast and soil‑safe advisories.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Market Prices -->
+      <div class="col-xl-6">
+        <div class="card shadow-sm h-100"data-aos="fade-up">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <h6 class="mb-0"><i class="bi bi-currency-rupee me-2"></i><span data-i18n="sec_prices">Nearby Market Prices</span></h6>
+            <small id="marketLoc" class="text-secondary"></small>
+          </div>
+          <div class="card-body" id="marketPanel">
+            <div class="text-secondary" data-i18n="placeholder_market">Click “Fetch Nearby Prices”.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pest / Disease Detector -->
+      <div class="col-12">
+  <div class="card shadow-sm"data-aos="fade-up">
+
+    <div class="card-header bg-white d-flex align-items-center justify-content-between">
+      <h6 class="mb-0">
+        <i class="bi bi-bug me-2"></i>
+        Pest & Disease Detection (Upload Image)
+      </h6>
+
+      <div class="small text-secondary">
+        <i class="bi bi-shield-check me-1"></i>
+        Images are analyzed by AI to suggest likely issues and remedies.
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+
+        <div class="col-md-4">
+          <input class="form-control" type="file" id="pestImageInput" accept="image/*">
+        </div>
+
+        <div class="col-md-8 d-flex gap-2">
+          <button id="btnAnalyzeImage" class="btn btn-outline-primary">
+            Analyze Image
+          </button>
+
+          <div class="form-text">
+            Clear, close photo of the affected part (leaf/fruit/stem).
+          </div>
+        </div>
+
+      </div>
+
+      <div id="pestResult" class="mt-3 text-secondary"></div>
+    </div>
+
+  </div>
+</div>
+<!-- Live Farm Sensor -->
+   <div class="col-12">
+  <div class="card shadow-sm"data-aos="fade-up">
+
+    <div class="card-header bg-white d-flex align-items-center justify-content-between">
+      <h6 class="mb-0">
+        <i class="bi bi-thermometer-half me-2"></i>
+        Live Temperature & Humidity
+      </h6>
+      <span class="badge bg-success">IoT Sensor</span>
+    </div>
+
+    <div class="card-body">
+      <div class="row text-center">
+
+        <div class="col-md-6 border-end">
+          <h5 class="text-muted mb-1">Temperature</h5>
+          <h3 class="fw-bold text-danger">
+            <span id="temp">--</span>°C
+          </h3>
+        </div>
+
+        <div class="col-md-6">
+          <h5 class="text-muted mb-1">Humidity</h5>
+          <h3 class="fw-bold text-primary">
+            <span id="hum">--</span> %
+          </h3>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+      <!-- Climate Adaptive Hint -->
+      <div class="col-12">
+        <div class="card shadow-sm"data-aos="fade-up">
+          <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-lightbulb me-2"></i><span data-i18n="sec_hint">Climate‑Adaptive Hint</span></h6></div>
+          <div class="card-body" id="climatePanel" data-i18n="placeholder_hint">Seasonal note will appear here after you generate a plan.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Floating Save Shortcut -->
+  <button id="btnQuickSave" class="btn btn-success rounded-pill shadow floating-save" data-aos="fade-up"><i class="bi bi-save2 me-2"></i><span data-i18n="btn_quicksave">Quick Save</span></button>
+
+  <!-- Saved Plans Modal -->
+  <div class="modal fade" id="plansModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-archive me-2"></i><span data-i18n="modal_saved">Saved Plans</span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="plansList" class="list-group small"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnClearPlans" class="btn btn-outline-danger"><i class="bi bi-trash3 me-1"></i><span data-i18n="btn_clear">Clear All</span></button>
+          <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback Modal -->
+  <div class="modal fade" id="feedbackModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-chat-dots me-2"></i><span data-i18n="modal_feedback">Feedback</span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" for="fbText" data-i18n="label_fb">What should we improve?</label>
+          <textarea id="fbText" class="form-control" rows="4"></textarea>
+          <div class="form-text" data-i18n="hint_fb">Usage metrics (feature clicks, errors) are stored locally to improve recommendations.</div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnSendFeedback" class="btn btn-success"><i class="bi bi-send me-1"></i><span data-i18n="btn_send">Send</span></button>
+          <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="btn_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
+    <div id="toast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="toastMsg">Saved!</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="container my-5 text-center small footer-text"data-aos="fade-up">
+    Built with ❤️ for farmers. This tool gives indicative guidance only; consult local agri‑extension officers for official recommendations.
+  </footer>
+
+  <!-- Chat Toggle Button -->
+  <button id="chat-toggle" title="Open AgriBot">🌱</button>
+
+  <!-- Chatbox -->
+  <div id="chatbox" role="dialog" aria-label="AgriBot">
+    <div id="chat-header">
+      <span>AgriBot 🤖</span>
+      <div class="d-flex align-items-center gap-2">
+        <button id="btnTTS" class="btn btn-sm btn-light" title="Read last reply"><i class="bi bi-volume-up"></i></button>
+        <button id="btnMic" class="btn btn-sm btn-light" title="Voice input"><i class="bi bi-mic"></i></button>
+        <button id="chatbox-close" class="btn btn-sm btn-danger">×</button>
+      </div>
+    </div>
+    <div id="chat-messages"></div>
+    <div id="chat-input">
+      <input type="text" id="user-input" placeholder="Ask me anything...">
+      <button id="send-btn" class="btn btn-success"><i class="bi bi-send"></i></button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+ 
+
+  <script>
+    
+    // --- Constants & helpers ---
+    const HECTARE_TO_ACRE = 2.47105;
+    const el = id => document.getElementById(id);
+    const q = sel => document.querySelector(sel);
+    const KEY = 'agrinutri_plans_v2';
+
+    function showToast(msg, isOk = true){
+      const toastEl = el('toast');
+      el('toastMsg').textContent = msg;
+      toastEl.classList.toggle('text-bg-success', isOk);
+      toastEl.classList.toggle('text-bg-danger', !isOk);
+      bootstrap.Toast.getOrCreateInstance(toastEl).show();
+    }
+    const toNumber = (v, f=0)=>{ const n = Number(v); return isNaN(n)?f:n; };
+    const round1 = n => Math.round(n*10)/10;
+    function animateValue(id,start,end,duration){
+
+let range = end - start;
+let current = start;
+let increment = end > start ? 1 : -1;
+
+let stepTime = Math.abs(Math.floor(duration / range));
+
+let obj = document.getElementById(id);
+
+let timer = setInterval(function(){
+
+current += increment;
+obj.textContent = current;
+
+if(current == end){
+clearInterval(timer);
+}
+
+}, stepTime);
+
+}
+
+    // --- Simple knowledge base (demo values) ---
+    const cropDefaults = {
+      "Rice":{ yieldPerAcreQ:22, N:80, P:40, K:40 },
+      "Wheat":{ yieldPerAcreQ:18, N:90, P:40, K:40 },
+      "Maize":{ yieldPerAcreQ:20, N:100, P:50, K:40 },
+      "Millets":{ yieldPerAcreQ:10, N:40, P:20, K:20 },
+      "Cotton":{ yieldPerAcreQ:8, N:75, P:40, K:40 }
+    };
+
+    // --- i18n (extendable) ---
+    const dict = {
+      en:{
+        hero_title:'AI-Driven Smart Agri Guide', hero_tag:'Enter crop, area, soil details, and get multilingual, location‑aware guidance: N‑P‑K plan, weather alerts, pest detection, and market prices.',
+        badge_multi:'Multi‑language', badge_voice:'Voice chat', badge_weather:'Weather‑aware', badge_pest:'Pest via image',
+        label_lang:'Language', tip_pwa:'Tip: Add this page to your home screen for quick offline access.',
+        sec_farm:'Farm & Crop', label_crop:'Crop', label_season:'Season', label_area:'Cultivation Area', hint_area:'1 hectare = 2.471 acres (auto‑converted).', label_loc:'Location (optional)',
+        sec_soil:'Soil Details', sec_market:'Market & Costs', note_prices:'Prices in ₹; yield & price assumed per <b>quintal</b> (100 kg)', label_mp:'Market Price / Quintal', btn_market:'Fetch Nearby Prices', btn_generate:'Generate Plan',
+        sec_fert:'Fertilizer Recommendation', badge_ready:'Ready', placeholder_run:'Run <b>Generate Plan</b> to see recommendations.',
+        sec_fin:'Yield & Finance', btn_save:'Save Plan', placeholder_proj:'Projections will appear here.',
+        sec_weather:'Weather & Alerts', placeholder_weather:'Enable location to fetch forecast and soil‑safe advisories.',
+        sec_prices:'Nearby Market Prices', placeholder_market:'Click “Fetch Nearby Prices”.',
+        sec_pest:'Pest & Disease Detection (Upload Image)', note_privacy:'Images are analyzed by AI to suggest likely issues and remedies.', btn_analyze:'Analyze Image', hint_pest:'Clear, close photo of the affected part (leaf/fruit/stem).',
+        sec_hint:'Climate‑Adaptive Hint', placeholder_hint:'Seasonal note will appear here after you generate a plan.',
+        modal_saved:'Saved Plans', btn_clear:'Clear All', btn_close:'Close', btn_quicksave:'Quick Save', modal_feedback:'Feedback', label_fb:'What should we improve?', hint_fb:'Usage metrics (feature clicks, errors) are stored locally to improve recommendations.', btn_send:'Send'
+      },
+      hi:{ hero_title:'स्मार्ट उर्वरक, लाभ व मौसम सलाह', hero_tag:'फसल, क्षेत्र, मिट्टी दर्ज करें और बहुभाषी, स्थान आधारित मार्गदर्शन पाएं।', badge_multi:'बहुभाषी', badge_voice:'आवाज़ चैट', badge_weather:'मौसम आधारित', badge_pest:'छवि से कीट', label_lang:'भाषा', tip_pwa:'त्वरित ऑफलाइन उपयोग के लिए होम स्क्रीन में जोड़ें।', sec_farm:'खेत व फसल', label_crop:'फसल', label_season:'सीजन', label_area:'कृषि क्षेत्र', hint_area:'1 हेक्टेयर = 2.471 एकड़।', label_loc:'स्थान (वैकल्पिक)', sec_soil:'मिट्टी विवरण', sec_market:'बाजार व लागत', note_prices:'कीमत ₹ में; उपज/कीमत <b>क्विंटल</b> (100 किग्रा) पर।', label_mp:'क्विंटल प्रति बाजार भाव', btn_market:'नज़दीकी भाव लाएं', btn_generate:'योजना बनाएं', sec_fert:'उर्वरक सिफारिश', badge_ready:'तैयार', placeholder_run:'“योजना बनाएं” दबाएँ।', sec_fin:'उपज व वित्त', btn_save:'योजना सेव करें', placeholder_proj:'यहाँ अनुमान दिखेंगे।', sec_weather:'मौसम व अलर्ट', placeholder_weather:'लोकेशन ऑन करें।', sec_prices:'पास के बाजार भाव', placeholder_market:'“नज़दीकी भाव लाएं” दबाएँ।', sec_pest:'कीट/रोग पहचान (छवि)', note_privacy:'छवियों का AI से विश्लेषण होगा।', btn_analyze:'विश्लेषण करें', hint_pest:'प्रभावित भाग का साफ़ क्लोज़‑अप लें।', sec_hint:'जलवायु आधारित संकेत', placeholder_hint:'योजना के बाद सुझाव दिखेंगे।', modal_saved:'सेव्ड योजनाएँ', btn_clear:'सभी हटाएँ', btn_close:'बंद', btn_quicksave:'त्वरित सेव', modal_feedback:'प्रतिक्रिया', label_fb:'हम क्या सुधारें?', hint_fb:'उपयोग आँकड़े लोकली सेव होते हैं।', btn_send:'भेजें' },
+      ta:{ hero_title:'ஏஐ இயக்கப்படும் ஸ்மார்ட் விவசாய வழிகாட்டி',
+hero_tag:'பயிர், பரப்பு, மண் விவரங்களை உள்ளிடுங்கள்; பன்மொழி, இடத்தை அறிந்த வழிகாட்டுதலைப் பெறுங்கள்: N-P-K திட்டம், வானிலை எச்சரிக்கைகள், பூச்சி கண்டறிதல், சந்தை விலைகள்.',
+badge_multi:'பன்மொழி',
+badge_voice:'குரல் உரையாடல்',
+badge_weather:'வானிலை-அறிந்த',
+badge_pest:'படம் மூலம் பூச்சி',
+label_lang:'மொழி',
+tip_pwa:'குறிப்பு: விரைவான ஆஃப்லைன் அணுகலுக்காக இந்தப் பக்கத்தை உங்கள் முகப்புத்திரையில் சேர்க்கவும்.',
+sec_farm:'பண்ணை & பயிர்',
+label_crop:'பயிர்',
+label_season:'காலம்',
+label_area:'பயிரிடும் பரப்பு',
+hint_area:'1 ஹெக்டேர் = 2.471 ஏக்கர் (தானாக மாற்றப்படும்).',
+label_loc:'இடம் (விருப்பம்)',
+sec_soil:'மண் விவரங்கள்',
+sec_market:'சந்தை & செலவுகள்',
+note_prices:'விலைகள் ₹-ல்; விளைச்சல் & விலை <b>குவிண்டல்</b> (100 கிலோ) அடிப்படையில் கருதப்பட்டுள்ளது.',
+label_mp:'சந்தை விலை / குவிண்டல்',
+btn_market:'அருகிலுள்ள விலைகளை பெறுக',
+btn_generate:'திட்டம் உருவாக்கு',
+sec_fert:'உர பரிந்துரை',
+badge_ready:'தயார்',
+placeholder_run:'பரிந்துரைகளைப் பார்க்க <b>திட்டம் உருவாக்கு</b> ஐ இயக்கவும்.',
+sec_fin:'விளைச்சல் & நிதி',
+btn_save:'திட்டத்தை சேமிக்கவும்',
+placeholder_proj:'முன்னறிவிப்புகள் இங்கே தோன்றும்.',
+sec_weather:'வானிலை & எச்சரிக்கைகள்',
+placeholder_weather:'முன்னறிவிப்பையும் மண்-பாதுகாப்பான ஆலோசனைகளையும் பெற இடத்தை இயக்கு.',
+sec_prices:'அருகிலுள்ள சந்தை விலைகள்',
+placeholder_market:'“அருகிலுள்ள விலைகளை பெறுக” என்பதைச் சொடுக்கவும்.',
+sec_pest:'பூச்சி & நோய் கண்டறிதல் (படம் பதிவேற்றுக)',
+note_privacy:'AI மூலம் படங்கள் பகுப்பாய்வு செய்யப்படும்; சாத்தியமான பிரச்சினைகள் மற்றும் தீர்வுகள் பரிந்துரைக்கப்படும்.',
+btn_analyze:'படத்தை பகுப்பாய்வு செய்',
+hint_pest:'பாதிக்கப்பட்ட பகுதியின் தெளிவான, அருகிலுள்ள புகைப்படம் (இலை/பழம்/தண்டு).',
+sec_hint:'காலநிலை-ஒத்திகை குறிப்பு',
+placeholder_hint:'நீங்கள் திட்டம் உருவாக்கிய பின் பருவ குறிப்பு இங்கே தோன்றும்.',
+modal_saved:'சேமிக்கப்பட்ட திட்டங்கள்',
+btn_clear:'அனைத்தையும் அழிக்கவும்',
+btn_close:'மூடு',
+btn_quicksave:'விரைவு சேமிப்பு',
+modal_feedback:'கருத்து',
+label_fb:'நாம் என்ன மேம்படுத்த வேண்டும்?',
+hint_fb:'பயன்பாட்டு அளவுகள் (அம்ச கிளிக்குகள், பிழைகள்) உள்ளூர் சேமிக்கப்படும்; பரிந்துரைகளை மேம்படுத்த உதவும்.',
+btn_send:'அனுப்பு'
+ },
+pa: { // Punjabi
+    hero_title:'ਸਮਾਰਟ ਖਾਦ + ਲਾਭ ਅਤੇ ਮੌਸਮ ਸਲਾਹਕਾਰ',
+    hero_tag:'ਫਸਲ, ਖੇਤਰ, ਮਿੱਟੀ ਵੇਰਵਾ ਦਾਖਲ ਕਰੋ ਅਤੇ ਬਹੁਭਾਸ਼ਾਈ, ਸਥਾਨ-ਅਧਾਰਤ ਦਿਸ਼ਾ-ਨਿਰਦੇਸ਼ ਪ੍ਰਾਪਤ ਕਰੋ: N-P-K ਯੋਜਨਾ, ਮੌਸਮ ਚੇਤਾਵਨੀਆਂ, ਕੀਟ ਪਛਾਣ ਅਤੇ ਮਾਰਕੀਟ ਕੀਮਤਾਂ।',
+    badge_multi:'ਬਹੁਭਾਸ਼ਾਈ', badge_voice:'ਆਵਾਜ਼ ਚੈਟ', badge_weather:'ਮੌਸਮ-ਅਧਾਰਤ', badge_pest:'ਤਸਵੀਰ ਰਾਹੀਂ ਕੀਟ',
+    label_lang:'ਭਾਸ਼ਾ', tip_pwa:'ਝਟਪਟ ਆਫਲਾਈਨ ਪਹੁੰਚ ਲਈ ਇਸ ਪੇਜ ਨੂੰ ਆਪਣੇ ਹੋਮ ਸਕ੍ਰੀਨ ਤੇ ਸ਼ਾਮਲ ਕਰੋ।',
+    sec_farm:'ਖੇਤ ਅਤੇ ਫਸਲ', label_crop:'ਫਸਲ', label_season:'ਮੌਸਮ', label_area:'ਖੇਤੀ ਖੇਤਰ',
+    hint_area:'1 ਹੈਕਟੇਅਰ = 2.471 ਏਕੜ।', label_loc:'ਸਥਾਨ (ਵਿਕਲਪਿਕ)',
+    sec_soil:'ਮਿੱਟੀ ਵੇਰਵਾ', sec_market:'ਮਾਰਕੀਟ ਅਤੇ ਖਰਚੇ',
+    note_prices:'ਕੀਮਤਾਂ ₹ ਵਿੱਚ; ਉਪਜ/ਕੀਮਤ <b>ਕੁਇੰਟਲ</b> (100 ਕਿ.ਗ੍ਰਾ.) ਅਨੁਸਾਰ।',
+    label_mp:'ਮਾਰਕੀਟ ਕੀਮਤ / ਕੁਇੰਟਲ', btn_market:'ਨੇੜਲੇ ਭਾਅ ਲਓ', btn_generate:'ਯੋਜਨਾ ਬਣਾਓ',
+    sec_fert:'ਖਾਦ ਸਿਫਾਰਸ਼', badge_ready:'ਤਿਆਰ',
+    placeholder_run:'ਸਿਫਾਰਸ਼ਾਂ ਵੇਖਣ ਲਈ <b>ਯੋਜਨਾ ਬਣਾਓ</b> ਚਲਾਓ।',
+    sec_fin:'ਉਪਜ ਅਤੇ ਵਿੱਤ', btn_save:'ਯੋਜਨਾ ਸੇਵ ਕਰੋ', placeholder_proj:'ਅਨੁਮਾਨ ਇੱਥੇ ਦਿਖਣਗੇ।',
+    sec_weather:'ਮੌਸਮ ਅਤੇ ਚੇਤਾਵਨੀਆਂ', placeholder_weather:'ਪੇਸ਼ਗੋਈ ਲਈ ਸਥਾਨ ਆਨ ਕਰੋ।',
+    sec_prices:'ਨੇੜਲੇ ਮਾਰਕੀਟ ਭਾਅ', placeholder_market:'“ਨੇੜਲੇ ਭਾਅ ਲਓ” ਦਬਾਓ।',
+    sec_pest:'ਕੀਟ ਅਤੇ ਬਿਮਾਰੀ ਪਛਾਣ (ਤਸਵੀਰ)', note_privacy:'ਤਸਵੀਰਾਂ ਦਾ AI ਰਾਹੀਂ ਵਿਸ਼ਲੇਸ਼ਣ ਹੋਵੇਗਾ।',
+    btn_analyze:'ਵਿਸ਼ਲੇਸ਼ਣ ਕਰੋ', hint_pest:'ਪ੍ਰਭਾਵਿਤ ਹਿੱਸੇ ਦੀ ਸਾਫ਼ ਨੇੜਲੀ ਤਸਵੀਰ (ਪੱਤਾ/ਫਲ/ਟਾਹਣੀ)।',
+    sec_hint:'ਜਲਵਾਯੂ ਅਨੁਕੂਲ ਸੁਝਾਅ', placeholder_hint:'ਯੋਜਨਾ ਤੋਂ ਬਾਅਦ ਸੁਝਾਅ ਇੱਥੇ ਦਿਸੇਗਾ।',
+    modal_saved:'ਸੇਵ ਕੀਤੀਆਂ ਯੋਜਨਾਵਾਂ', btn_clear:'ਸਭ ਹਟਾਓ', btn_close:'ਬੰਦ', btn_quicksave:'ਤੁਰੰਤ ਸੇਵ',
+    modal_feedback:'ਫੀਡਬੈਕ', label_fb:'ਅਸੀਂ ਕੀ ਸੁਧਾਰਨਾ ਚਾਹੀਦਾ ਹੈ?', hint_fb:'ਉਪਯੋਗ ਡਾਟਾ ਲੋਕਲ ਸੇਵ ਹੁੰਦਾ ਹੈ।',
+    btn_send:'ਭੇਜੋ'
+  },
+
+  te:{ // Telugu
+    hero_title:'స్మార్ట్ ఎరువు + లాభం & వాతావరణ సలహాదారు',
+    hero_tag:'పంట, విస్తీర్ణం, నేల వివరాలను నమోదు చేసి బహుభాషా, ప్రదేశం ఆధారిత మార్గదర్శకత్వం పొందండి: N-P-K ప్లాన్, వాతావరణ హెచ్చరికలు, కీటక గుర్తింపు, మార్కెట్ ధరలు.',
+    badge_multi:'బహుభాషా', badge_voice:'వాయిస్ చాట్', badge_weather:'వాతావరణ అవగాహన', badge_pest:'చిత్రం ద్వారా కీటకం',
+    label_lang:'భాష', tip_pwa:'త్వరిత ఆఫ్‌లైన్ యాక్సెస్ కోసం ఈ పేజీని హోమ్ స్క్రీన్‌కి జోడించండి.',
+    sec_farm:'వ్యవసాయం & పంట', label_crop:'పంట', label_season:'సీజన్', label_area:'పంట విస్తీర్ణం',
+    hint_area:'1 హెక్టారుకు = 2.471 ఎకరాలు.', label_loc:'ప్రాంతం (ఐచ్చికం)',
+    sec_soil:'నేల వివరాలు', sec_market:'మార్కెట్ & ఖర్చులు',
+    note_prices:'ధరలు ₹లో; దిగుబడి & ధర <b>క్వింటాల్</b> (100 కిలోలు)కి.',
+    label_mp:'మార్కెట్ ధర / క్వింటాల్', btn_market:'సమీప ధరలను తెచ్చుకోండి', btn_generate:'ప్రణాళిక సృష్టించు',
+    sec_fert:'ఎరువు సిఫార్సు', badge_ready:'సిద్ధం',
+    placeholder_run:'సిఫార్సులు చూడటానికి <b>ప్రణాళిక సృష్టించు</b> నొక్కండి.',
+    sec_fin:'దిగుబడి & ఆర్థికం', btn_save:'ప్రణాళికను సేవ్ చేయి', placeholder_proj:'ప్రక్షేపణలు ఇక్కడ కనిపిస్తాయి.',
+    sec_weather:'వాతావరణం & హెచ్చరికలు', placeholder_weather:'అంచనా పొందడానికి ప్రదేశం ఆన్ చేయండి.',
+    sec_prices:'సమీప మార్కెట్ ధరలు', placeholder_market:'“సమీప ధరలను తెచ్చుకోండి” నొక్కండి.',
+    sec_pest:'కీటక & వ్యాధి గుర్తింపు (చిత్రం)', note_privacy:'చిత్రాలు AI ద్వారా విశ్లేషించబడతాయి.',
+    btn_analyze:'విశ్లేషించు', hint_pest:'ప్రభావిత భాగం యొక్క స్పష్టమైన దగ్గరి ఫోటో (ఆకు/పండు/కొమ్మ).',
+    sec_hint:'కాలానుగుణ సూచన', placeholder_hint:'ప్రణాళిక తర్వాత సూచన ఇక్కడ కనిపిస్తుంది.',
+    modal_saved:'సేవ్ చేసిన ప్రణాళికలు', btn_clear:'అన్నీ క్లియర్ చేయి', btn_close:'మూసివేయి', btn_quicksave:'త్వరిత సేవ్',
+    modal_feedback:'ఫీడ్‌బ్యాక్', label_fb:'మేము ఏమి మెరుగుపరచాలి?', hint_fb:'ఉపయోగ డేటా లోకల్‌గా సేవ్ అవుతుంది.',
+    btn_send:'పంపించు'
+  },
+
+  mr:{ // Marathi
+    hero_title:'स्मार्ट खत + नफा आणि हवामान सल्लागार',
+    hero_tag:'पीक, क्षेत्र, मातीची माहिती भरा आणि बहुभाषिक, स्थान-आधारित मार्गदर्शन मिळवा: N-P-K योजना, हवामान इशारे, कीड ओळख आणि बाजारभाव.',
+    badge_multi:'बहुभाषिक', badge_voice:'आवाज चॅट', badge_weather:'हवामान-जाणीव', badge_pest:'प्रतिमेतून कीड',
+    label_lang:'भाषा', tip_pwa:'जलद ऑफलाइन प्रवेशासाठी या पृष्ठाला होम स्क्रीनवर जोडा.',
+    sec_farm:'शेत आणि पीक', label_crop:'पीक', label_season:'हंगाम', label_area:'शेती क्षेत्र',
+    hint_area:'1 हेक्टर = 2.471 एकर.', label_loc:'स्थान (पर्यायी)',
+    sec_soil:'माती तपशील', sec_market:'बाजार आणि खर्च',
+    note_prices:'किंमती ₹ मध्ये; उत्पादन/किंमत <b>क्विंटल</b> (100 कि.ग्रॅ.) प्रमाणे.',
+    label_mp:'बाजारभाव / क्विंटल', btn_market:'जवळचे भाव आणा', btn_generate:'योजना तयार करा',
+    sec_fert:'खत शिफारस', badge_ready:'तयार',
+    placeholder_run:'शिफारसी पाहण्यासाठी <b>योजना तयार करा</b> दाबा.',
+    sec_fin:'उत्पन्न आणि अर्थ', btn_save:'योजना सेव्ह करा', placeholder_proj:'अनुमाने येथे दिसतील.',
+    sec_weather:'हवामान आणि इशारे', placeholder_weather:'भविष्यवाणी मिळवण्यासाठी स्थान चालू करा.',
+    sec_prices:'जवळचे बाजार भाव', placeholder_market:'“जवळचे भाव आणा” दाबा.',
+    sec_pest:'कीड व रोग ओळख (प्रतिमा)', note_privacy:'प्रतिमांचे AI द्वारे विश्लेषण होईल.',
+    btn_analyze:'विश्लेषण करा', hint_pest:'प्रभावित भागाचा स्वच्छ जवळचा फोटो (पान/फळ/फांदी).',
+    sec_hint:'हवामान-अनुरूप सूचना', placeholder_hint:'योजनानंतर सूचना येथे दिसतील.',
+    modal_saved:'जतन केलेल्या योजना', btn_clear:'सर्व हटवा', btn_close:'बंद', btn_quicksave:'जलद सेव्ह',
+    modal_feedback:'प्रतिसाद', label_fb:'आम्ही काय सुधारावे?', hint_fb:'वापर डेटा स्थानिकपणे जतन होतो.',
+    btn_send:'पाठवा'
+  },
+
+  ml:{ // Malayalam
+    hero_title:'സ്മാർട്ട് വളം + ലാഭവും കാലാവസ്ഥാ ഉപദേശകൻ',
+    hero_tag:'വിള, വിസ്തൃതി, മണ്ണിന്റെ വിശദാംശങ്ങൾ നൽകി ബഹുഭാഷ, സ്ഥലം-അറിയാവുന്ന മാർഗനിർദ്ദേശം നേടുക: N-P-K പദ്ധതി, കാലാവസ്ഥ മുന്നറിയിപ്പുകൾ, കീട കണ്ടെത്തൽ, മാർക്കറ്റ് വിലകൾ.',
+    badge_multi:'ബഹുഭാഷ', badge_voice:'വോയ്‌സ് ചാറ്റ്', badge_weather:'കാലാവസ്ഥ-അറിയാവുന്ന', badge_pest:'ചിത്രം വഴി കീടം',
+    label_lang:'ഭാഷ', tip_pwa:'പെട്ടെന്നുള്ള ഓഫ്‌ലൈൻ പ്രവേശനത്തിനായി ഈ പേജ് ഹോം സ്‌ക്രീനിലേക്ക് ചേർക്കുക.',
+    sec_farm:'ഫാം & വിള', label_crop:'വിള', label_season:'സീസൺ', label_area:'കൃഷി വിസ്തൃതി',
+    hint_area:'1 ഹെക്ടർ = 2.471 ഏക്കർ.', label_loc:'സ്ഥലം (ഐച്ഛികം)',
+    sec_soil:'മണ്ണ് വിശദാംശങ്ങൾ', sec_market:'മാർക്കറ്റ് & ചെലവ്',
+    note_prices:'വിലകൾ ₹-ൽ; വിളവ്/വില <b>ക്വിന്റൽ</b> (100 കിലോ) അടിസ്ഥാനത്തിൽ.',
+    label_mp:'മാർക്കറ്റ് വില / ക്വിന്റൽ', btn_market:'അടുത്തുള്ള വിലകൾ നേടുക', btn_generate:'പദ്ധതി സൃഷ്ടിക്കുക',
+    sec_fert:'വളം ശുപാർശ', badge_ready:'സജ്ജം',
+    placeholder_run:'ശുപാർശകൾ കാണാൻ <b>പദ്ധതി സൃഷ്ടിക്കുക</b> അമർത്തുക.',
+    sec_fin:'വിളവും ധനകാര്യവും', btn_save:'പദ്ധതി സേവ് ചെയ്യുക', placeholder_proj:'പ്രവചനങ്ങൾ ഇവിടെ പ്രത്യക്ഷപ്പെടും.',
+    sec_weather:'കാലാവസ്ഥയും മുന്നറിയിപ്പുകളും', placeholder_weather:'പ്രവചനം ലഭിക്കാൻ സ്ഥലം ഓൺ ചെയ്യുക.',
+    sec_prices:'അടുത്തുള്ള മാർക്കറ്റ് വിലകൾ', placeholder_market:'“അടുത്തുള്ള വിലകൾ നേടുക” അമർത്തുക.',
+    sec_pest:'കീടം & രോഗം കണ്ടെത്തൽ (ചിത്രം)', note_privacy:'ചിത്രങ്ങൾ AI വഴി വിശകലനം ചെയ്യും.',
+    btn_analyze:'വിശകലനം ചെയ്യുക', hint_pest:'ബാധിത ഭാഗത്തിന്റെ വ്യക്തമായ അടുത്ത ചിത്രം (ഇല/പഴം/തണ്ട്).',
+    sec_hint:'കാലാവസ്ഥ-അനുസൃത നിർദേശം', placeholder_hint:'പദ്ധതി കഴിഞ്ഞ് നിർദേശം ഇവിടെ പ്രത്യക്ഷപ്പെടും.',
+    modal_saved:'സേവ് ചെയ്ത പദ്ധതികൾ', btn_clear:'എല്ലാം നീക്കംചെയ്യുക', btn_close:'അടയ്ക്കുക', btn_quicksave:'പെട്ടെന്ന് സേവ്',
+    modal_feedback:'ഫീഡ്‌ബാക്ക്', label_fb:'ഞങ്ങൾ എന്ത് മെച്ചപ്പെടുത്തണം?', hint_fb:'ഉപയോഗ ഡാറ്റ ലോക്കലായി സേവ് ചെയ്യും.',
+    btn_send:'അയയ്ക്കുക'
+  },
+
+  kn:{ // Kannada
+    hero_title:'ಸ್ಮಾರ್ಟ್ ರಸಗೊಬ್ಬರ + ಲಾಭ & ಹವಾಮಾನ ಸಲಹೆಗಾರ',
+    hero_tag:'ಬೆಳೆ, ಪ್ರದೇಶ, ಮಣ್ಣಿನ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ ಮತ್ತು ಬಹುಭಾಷಾ, ಸ್ಥಳಾಧಾರಿತ ಮಾರ್ಗದರ್ಶನ ಪಡೆಯಿರಿ: N-P-K ಯೋಜನೆ, ಹವಾಮಾನ ಎಚ್ಚರಿಕೆಗಳು, ಕೀಟ ಪತ್ತೆ, ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳು.',
+    badge_multi:'ಬಹುಭಾಷಾ', badge_voice:'ವಾಯ್ಸ್ ಚಾಟ್', badge_weather:'ಹವಾಮಾನ-ಅವಗಾಹನೆ', badge_pest:'ಚಿತ್ರದ ಮೂಲಕ ಕೀಟ',
+    label_lang:'ಭಾಷೆ', tip_pwa:'ಶೀಘ್ರ ಆಫ್‌ಲೈನ್ ಪ್ರವೇಶಕ್ಕಾಗಿ ಈ ಪುಟವನ್ನು ಹೋಮ್ ಸ್ಕ್ರೀನ್‌ಗೆ ಸೇರಿಸಿ.',
+    sec_farm:'ಫಾರ್ಮ್ & ಬೆಳೆ', label_crop:'ಬೆಳೆ', label_season:'ಸೀಸನ್', label_area:'ಬೆಳೆ ಪ್ರದೇಶ',
+    hint_area:'1 ಹೆಕ್ಟೇರ್ = 2.471 ಏಕರ್.', label_loc:'ಸ್ಥಳ (ಐಚ್ಛಿಕ)',
+    sec_soil:'ಮಣ್ಣಿನ ವಿವರಗಳು', sec_market:'ಮಾರುಕಟ್ಟೆ & ವೆಚ್ಚ',
+    note_prices:'ಬೆಲೆಗಳು ₹ ಯಲ್ಲಿ; ಉತ್ಪಾದನೆ/ಬೆಲೆ <b>ಕ್ವಿಂಟಲ್</b> (100 ಕೆಜಿ) ಆಧಾರಿತ.',
+    label_mp:'ಮಾರುಕಟ್ಟೆ ಬೆಲೆ / ಕ್ವಿಂಟಲ್', btn_market:'ಹತ್ತಿರದ ಬೆಲೆಗಳನ್ನು ಪಡೆಯಿರಿ', btn_generate:'ಯೋಜನೆ ರಚಿಸಿ',
+    sec_fert:'ರಸಗೊಬ್ಬರ ಶಿಫಾರಸು', badge_ready:'ಸಿದ್ಧ',
+    placeholder_run:'ಶಿಫಾರಸುಗಳನ್ನು ನೋಡಲು <b>ಯೋಜನೆ ರಚಿಸಿ</b> ಒತ್ತಿ.',
+    sec_fin:'ಉತ್ಪಾದನೆ & ಹಣಕಾಸು', btn_save:'ಯೋಜನೆ ಉಳಿಸಿ', placeholder_proj:'ಅನುವಾಗಿಗಳು ಇಲ್ಲಿ ಕಾಣಿಸಿಕೊಳ್ಳುತ್ತವೆ.',
+    sec_weather:'ಹವಾಮಾನ & ಎಚ್ಚರಿಕೆಗಳು', placeholder_weather:'ಹವಾಮಾನ ಭವಿಷ್ಯ ಪಡೆಯಲು ಸ್ಥಳ ಆನ್ ಮಾಡಿ.',
+    sec_prices:'ಹತ್ತಿರದ ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳು', placeholder_market:'“ಹತ್ತಿರದ ಬೆಲೆಗಳನ್ನು ಪಡೆಯಿರಿ” ಒತ್ತಿ.',
+    sec_pest:'ಕೀಟ & ರೋಗ ಪತ್ತೆ (ಚಿತ್ರ)', note_privacy:'ಚಿತ್ರಗಳನ್ನು AI ವಿಶ್ಲೇಷಿಸುತ್ತದೆ.',
+    btn_analyze:'ವಿಶ್ಲೇಷಿಸಿ', hint_pest:'ಪೀಡಿತ ಭಾಗದ ಸ್ಪಷ್ಟ ಸಮೀಪದ ಫೋಟೋ (ಎಲೆ/ಹಣ್ಣು/ಕೋಲು).',
+    sec_hint:'ಹವಾಮಾನ-ಅನುಗುಣ ಸೂಚನೆ', placeholder_hint:'ಯೋಜನೆಯ ನಂತರ ಸೂಚನೆ ಇಲ್ಲಿ ತೋರುತ್ತದೆ.',
+    modal_saved:'ಉಳಿಸಿದ ಯೋಜನೆಗಳು', btn_clear:'ಎಲ್ಲವನ್ನು ಅಳಿಸಿ', btn_close:'ಮುಚ್ಚಿ', btn_quicksave:'ತ್ವರಿತ ಉಳಿಸಿ',
+    modal_feedback:'ಪ್ರತಿಕ್ರಿಯೆ', label_fb:'ನಾವು ಏನು ಸುಧಾರಿಸಬೇಕು?', hint_fb:'ಬಳಕೆ ಡೇಟಾ ಸ್ಥಳೀಯವಾಗಿ ಉಳಿಯುತ್ತದೆ.',
+    btn_send:'ಕಳುಹಿಸಿ'
+  },
+
+  gu:{ // Gujarati
+    hero_title:'સ્માર્ટ ખાતર + નફો અને હવામાન સલાહકાર',
+    hero_tag:'પાક, વિસ્તાર, માટીના વિગત દાખલ કરો અને બહુભાષી, સ્થાન આધારિત માર્ગદર્શન મેળવો: N-P-K યોજના, હવામાન ચેતવણીઓ, જીવાત ઓળખ અને બજાર ભાવ.',
+    badge_multi:'બહુભાષી', badge_voice:'વોઇસ ચેટ', badge_weather:'હવામાન આધારિત', badge_pest:'ચિત્ર દ્વારા જીવાત',
+    label_lang:'ભાષા', tip_pwa:'ઝડપી ઓફલાઇન ઍક્સેસ માટે આ પેજને હોમ સ્ક્રીનમાં ઉમેરો.',
+    sec_farm:'ફાર્મ અને પાક', label_crop:'પાક', label_season:'સીઝન', label_area:'ખેતી વિસ્તાર',
+    hint_area:'1 હેક્ટર = 2.471 એકર.', label_loc:'સ્થાન (વૈકલ્પિક)',
+    sec_soil:'માટી વિગતો', sec_market:'બજાર અને ખર્ચ',
+    note_prices:'ભાવ ₹ માં; ઉત્પાદન/ભાવ <b>ક્વિન્ટલ</b> (100 કિલો) પ્રમાણે.',
+    label_mp:'બજાર ભાવ / ક્વિન્ટલ', btn_market:'નજીકના ભાવ મેળવો', btn_generate:'યોજન બનાવો',
+    sec_fert:'ખાતર ભલામણ', badge_ready:'તૈયાર',
+    placeholder_run:'ભલામણો જોવા માટે <b>યોજન બનાવો</b> દબાવો.',
+    sec_fin:'ઉત્પાદન અને નાણાં', btn_save:'યોજન સેવ કરો', placeholder_proj:'અનુમાન અહીં દેખાશે.',
+    sec_weather:'હવામાન અને ચેતવણીઓ', placeholder_weather:'પૂર્વાનુમાન મેળવવા માટે સ્થાન ચાલુ કરો.',
+    sec_prices:'નજીકના બજાર ભાવ', placeholder_market:'“નજીકના ભાવ મેળવો” દબાવો.',
+    sec_pest:'જીવાત અને રોગ ઓળખ (ચિત્ર)', note_privacy:'ચિત્રોનું AI દ્વારા વિશ્લેષણ થશે.',
+    btn_analyze:'વિશ્લેષણ કરો', hint_pest:'પ્રભાવિત ભાગનો સ્પષ્ટ નજીકનો ફોટો (પાન/ફળ/ડાળી).',
+    sec_hint:'હવામાન-અનુકૂળ સૂચન', placeholder_hint:'યોજનાના પછી સૂચન અહીં દેખાશે.',
+    modal_saved:'સેવ કરેલી યોજનાઓ', btn_clear:'બધું સાફ કરો', btn_close:'બંધ કરો', btn_quicksave:'ઝડપી સેવ',
+    modal_feedback:'પ્રતિસાદ', label_fb:'અમે શું સુધારવું જોઈએ?', hint_fb:'વપરાશ ડેટા લોકલમાં સેવ થાય છે.',
+    btn_send:'મોકલો'
+  }
+};
+// Populate language dropdown dynamically from dict
+const langSelect = document.getElementById('language');
+Object.keys(dict).forEach(code => {
+  const opt = document.createElement('option');
+  opt.value = code;
+
+  // Show native word for "Language" if available, else just code
+  opt.textContent = dict[code].label_lang + " (" + code.toUpperCase() + ")";
+  
+  langSelect.appendChild(opt);
+});
+
+// set default to English
+langSelect.value = 'en';
+
+// re-apply i18n on change
+langSelect.addEventListener('change', applyI18n);
+
+
+    function applyI18n(){
+      const lang = el('language').value || 'en';
+      document.querySelectorAll('[data-i18n]').forEach(node=>{
+        const key = node.getAttribute('data-i18n');
+        const t = dict[lang]?.[key]; if(t) node.innerHTML = t;
+      });
+    }
+
+    // --- Recommendation engine ---
+    function recommendFertilizer(crop, pH, oc){
+      const base = cropDefaults[crop]; if(!base) return null;
+      let N=base.N, P=base.P, K=base.K; const notes=[];
+      if(pH<6){ N=Math.round(N*0.9); notes.push('Acidic soil: apply agri‑lime as per local guidance; reduce N slightly.'); }
+      else if(pH>7.5){ P=Math.round(P*1.1); notes.push('Alkaline soil: consider gypsum for sodicity; increase P availability.'); }
+      else notes.push('Near‑neutral pH: standard recommendations apply.');
+      if(oc==='low'){ N=Math.round(N*1.05); notes.push('Low OC: boost N a little and add FYM/compost.'); }
+      if(oc==='high'){ N=Math.round(N*0.95); notes.push('High OC: slightly reduce N; leverage mineralization.'); }
+      // Convert to fertilizer products (indicative)
+      const P2O5=P, K2O=K, Nneed=N;
+      const DAP_kg=Math.round((P2O5/46)*100); const N_from_DAP=DAP_kg*0.18;
+      const MOP_kg=Math.round((K2O/60)*100);
+      const N_remaining=Math.max(0, Nneed - N_from_DAP);
+      const Urea_kg=Math.round((N_remaining/46)*100);
+      return {N,P,K,DAP_kg,MOP_kg,Urea_kg,notes};
+    }
+
+    function projectFinance(crop, areaAcre, marketPrice, oc, baselineYield){
+      const base=cropDefaults[crop]; if(!base) return null;
+      let y=baselineYield>0?baselineYield:base.yieldPerAcreQ;
+      if(oc==='low') y*=0.9; if(oc==='high') y*=1.08;
+      const total=y*areaAcre, revenue=total*marketPrice;
+      const seed=toNumber(el('seedCost').value,0), fert=toNumber(el('fertCost').value,0), labor=toNumber(el('laborCost').value,0), other=toNumber(el('otherCost').value,0);
+      const costs=seed+fert+labor+other, profit=revenue-costs, margin=revenue>0?(profit/revenue)*100:0;
+      return { yieldPerAcre:round1(y), totalYieldQ:round1(total), revenue:Math.round(revenue), costs:Math.round(costs), profit:Math.round(profit), margin:round1(margin) };
+    }
+
+    function renderRecommendation(r){
+      if(!r){ el('recPanel').innerHTML='<span class="text-danger">Missing inputs.</span>'; return; }
+      el('recBadge').classList.remove('d-none');
+      el('recPanel').innerHTML = `
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="d-flex flex-wrap gap-3">
+              <div class="stat">N: ${r.N} <small>kg/acre</small></div>
+              <div class="stat">P: ${r.P} <small>kg/acre</small></div>
+              <div class="stat">K: ${r.K} <small>kg/acre</small></div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="alert alert-success mb-2"><i class="bi bi-info-circle me-2"></i><b>Fertilizer Mix (indicative/acre):</b>
+              <ul class="mb-0">
+                <li>DAP: <b>${r.DAP_kg} kg</b></li>
+                <li>MOP: <b>${r.MOP_kg} kg</b></li>
+                <li>Urea (top‑up): <b>${r.Urea_kg} kg</b></li>
+              </ul>
+            </div>
+            <small class="text-secondary">Split doses and timing depend on crop stage and rainfall; consult local advisories.</small>
+          </div>
+          <div class="col-12"><ul class="mb-0 text-secondary">${r.notes.map(n=>`<li>${n}</li>`).join('')}</ul></div>
+        </div>`;
+    }
+
+    function renderFinance(p){
+      if(!p){ el('financePanel').innerHTML='<span class="text-danger">Missing inputs.</span>'; return; }
+      el('financePanel').innerHTML = `
+        <div class="row g-3 align-items-center">
+          <div class="col-md-6"><div class="p-3 bg-white border rounded-3"><div class="stat">${p.yieldPerAcre} <small>q/acre</small></div><div class="muted">Projected yield density</div></div></div>
+          <div class="col-md-6"><div class="p-3 bg-white border rounded-3"><div class="stat">${p.totalYieldQ} <small>q total</small></div><div class="muted">Total expected yield</div></div></div>
+          <div class="col-md-4"><div class="p-3 bg-white border rounded-3"><div class="stat">₹${p.revenue.toLocaleString()}</div><div class="muted">Revenue</div></div></div>
+          <div class="col-md-4"><div class="p-3 bg-white border rounded-3"><div class="stat">₹${p.costs.toLocaleString()}</div><div class="muted">Total cost</div></div></div>
+          <div class="col-md-4"><div class="p-3 bg-white border rounded-3 ${p.profit>=0?'border-success':'border-danger'}"><div class="stat">₹${p.profit.toLocaleString()}</div><div class="muted">Profit (${p.margin}%)</div></div></div>
+        </div>`;
+    }
+
+    function renderClimate(season, location){
+      const hints={Kharif:'Plan split N applications around major rainfall events to reduce leaching.', Rabi:'Irrigation scheduling and residue retention help conserve moisture.', Zaid:'Heat stress likely: irrigate early/late; mulching helps.'};
+      el('climatePanel').innerHTML = `<b>${season}</b> season hint: ${hints[season]||'Follow local advisory.'} ${location? '('+location+')':''}`;
+    }
+
+    function getInputs(){
+      return {
+        crop: el('crop').value, season: el('season').value, area: toNumber(el('area').value,0), areaUnit: el('areaUnit').value,
+        pH: toNumber(el('ph').value,7), oc: el('oc').value, texture: el('texture').value, ec: toNumber(el('ec').value,0),
+        marketPrice: toNumber(el('marketPrice').value,0), seedCost: toNumber(el('seedCost').value,0), fertCost: toNumber(el('fertCost').value,0), laborCost: toNumber(el('laborCost').value,0), otherCost: toNumber(el('otherCost').value,0), baselineYield: toNumber(el('baselineYield').value,0),
+        location: el('location').value, language: el('language').value, ts: Date.now()
+      };
+    }
+
+    function validateInputs(inp){
+      if(!inp.crop) return 'Please select a crop.';
+      if(inp.area <= 0) return 'Enter a valid cultivation area.';
+      if(inp.marketPrice <= 0) return 'Enter market price per quintal.';
+      if(inp.pH <= 0) return 'Enter soil pH.';
+      return null;
+    }
+
+    function generate(){
+      const inp = getInputs();
+      const err = validateInputs(inp); if(err){ showToast(err,false); return; }
+      const areaAcre = inp.areaUnit==='hectare' ? inp.area*HECTARE_TO_ACRE : inp.area;
+      const rec = recommendFertilizer(inp.crop, inp.pH, inp.oc);
+      const fin = projectFinance(inp.crop, areaAcre, inp.marketPrice, inp.oc, inp.baselineYield);
+      renderRecommendation(rec); renderFinance(fin); renderClimate(inp.season, inp.location);
+      lastPlan = { inputs: inp, rec, fin };
+      track('generate_plan');
+    }
+
+    // --- Storage ---
+    let lastPlan = null;
+    function savePlan(){ if(!lastPlan){ showToast('Generate a plan first.', false); return; } const plans=JSON.parse(localStorage.getItem(KEY)||'[]'); plans.push(lastPlan); localStorage.setItem(KEY, JSON.stringify(plans)); showToast('Plan saved locally.'); refreshPlansList(); track('save_plan'); }
+    function refreshPlansList(){ const plans=JSON.parse(localStorage.getItem(KEY)||'[]'); const list=el('plansList'); if(plans.length===0){ list.innerHTML='<div class="text-secondary">No saved plans yet.</div>'; return;} list.innerHTML=''; plans.forEach((p,idx)=>{ const d=new Date(p.inputs.ts); const header=`${p.inputs.crop} • ${p.inputs.area} ${p.inputs.areaUnit} • ₹${p.fin.revenue.toLocaleString()} rev`; const item=document.createElement('div'); item.className='list-group-item list-group-item-action'; item.innerHTML=`<div class="d-flex w-100 justify-content-between"><h6 class="mb-1">${header}</h6><small>${d.toLocaleString()}</small></div><div class="small text-secondary">pH ${p.inputs.pH}, OC ${p.inputs.oc}, Price ₹${p.inputs.marketPrice}/q</div><div class="mt-2 d-flex gap-2"><button class="btn btn-sm btn-outline-primary" data-idx="${idx}"><i class="bi bi-upload me-1"></i>Load</button><button class="btn btn-sm btn-outline-danger" data-del="${idx}"><i class="bi bi-x-circle me-1"></i>Delete</button></div>`; list.appendChild(item); }); }
+    function loadPlan(idx){ const plans=JSON.parse(localStorage.getItem(KEY)||'[]'); const p=plans[idx]; if(!p) return; const i=p.inputs; el('crop').value=i.crop; el('season').value=i.season; el('area').value=i.area; el('areaUnit').value=i.areaUnit; el('ph').value=i.pH; el('oc').value=i.oc; el('texture').value=i.texture; el('ec').value=i.ec; el('marketPrice').value=i.marketPrice; el('seedCost').value=i.seedCost; el('fertCost').value=i.fertCost; el('laborCost').value=i.laborCost; el('otherCost').value=i.otherCost; el('baselineYield').value=i.baselineYield; el('location').value=i.location; el('language').value=i.language; lastPlan=p; renderRecommendation(p.rec); renderFinance(p.fin); renderClimate(i.season, i.location); showToast('Plan loaded.'); }
+    function clearPlans(){ localStorage.removeItem(KEY); refreshPlansList(); showToast('All saved plans cleared.', true); }
+    function exportJSON(){ const data=lastPlan||{inputs:getInputs()}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`agrinutri_plan_${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    // --- Geolocation + reverse geocode ---
+    let geo = { lat:null, lon:null, admin:null };
+    async function enableLocation(){
+      if(!navigator.geolocation){ showToast('Geolocation not supported', false); return; }
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        geo.lat=pos.coords.latitude; geo.lon=pos.coords.longitude; track('enable_location');
+        try{
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${geo.lat}&lon=${geo.lon}`);
+          const data = await res.json(); geo.admin = data?.address ? `${data.address.county||data.address.state_district||''}, ${data.address.state||''}`.trim() : '';
+          el('location').value = geo.admin; el('weatherLoc').textContent = geo.admin; el('marketLoc').textContent = geo.admin;
+          fetchWeather();
+        }catch{ /* ignore */ }
+      }, err=>{ showToast('Location permission denied.', false); });
+    }
+
+    // --- Weather (Open‑Meteo, no key) ---
+    async function fetchWeather(){
+      if(!geo.lat||!geo.lon){ return; }
+      try{
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&hourly=precipitation,temperature_2m,relative_humidity_2m&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&forecast_days=3&timezone=auto`;
+        const res = await fetch(url); const w = await res.json();
+        const d = w.daily; const todayRain = d?.precipitation_sum?.[0]||0; const tmax = d?.temperature_2m_max?.[0]||0; const tmin = d?.temperature_2m_min?.[0]||0;
+        const risk = todayRain>20? 'bad' : todayRain>5? 'warn' : 'ok';
+        el('weatherPanel').innerHTML = `
+          <div class="d-flex flex-wrap gap-3 align-items-center">
+            <div><span class="alert-dot alert-${risk}"></span>${todayRain} mm rain today</div>
+            <div><i class="bi bi-thermometer-sun me-1"></i>${tmax}°C max</div>
+            <div><i class="bi bi-thermometer me-1"></i>${tmin}°C min</div>
+          </div>
+          <hr/>
+          <ul class="mb-0">
+            ${todayRain>10?'<li>Heavy rain forecast: split N, avoid urea before downpour.</li>':''}
+            ${tmax>38?'<li>Heat stress risk: irrigate early/late; avoid mid‑day sprays.</li>':''}
+            ${todayRain<=5 && tmax<36?'<li>Favourable today for top‑dressing and weeding.</li>':''}
+          </ul>`;
+        track('weather_fetch');
+      }catch(e){ el('weatherPanel').innerHTML='<span class="text-danger">Weather fetch failed.</span>'; }
+    }
+
+    // --- Market prices (demo: try Agmarknet/data.gov.in proxy or fallback) ---
+    async function fetchMarketPrices(){
+      track('market_fetch');
+      el('marketPanel').innerHTML = '<div class="text-secondary">Fetching…</div>';
+      try{
+        // Placeholder demo: attempt a public dataset (may require CORS/proxy). Fallback to mock prices.
+        // const res = await fetch(`YOUR_MARKET_API?lat=${geo.lat}&lon=${geo.lon}&crop=${encodeURIComponent(el('crop').value)}`);
+        // const data = await res.json();
+        const crop = (el('crop').value||'Rice');
+        // Mock few prices
+        const mock=[
+          { mandi:'Nearest Mandi A', commodity:crop, min:2100, max:2650, modal:2400, date:new Date().toLocaleDateString() },
+          { mandi:'Nearest Mandi B', commodity:crop, min:2050, max:2625, modal:2380, date:new Date().toLocaleDateString() }
+        ];
+        renderMarket(mock);
+      }catch(e){ el('marketPanel').innerHTML = '<span class="text-danger">Price fetch failed.</span>'; }
+    }
+    function renderMarket(rows){
+      el('marketPanel').innerHTML = `<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Mandi</th><th>Commodity</th><th>Min</th><th>Max</th><th>Modal</th><th>Date</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.mandi}</td><td>${r.commodity}</td><td>₹${r.min}</td><td>₹${r.max}</td><td><b>₹${r.modal}</b></td><td>${r.date}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+
+    const MODEL_PATH = "web_model/model.json";
+
+let tfModel = null;
+(async ()=>{
+  tfModel = await tf.loadGraphModel(MODEL_PATH);
+  console.log("Model loaded");
+})();
+
+async function analyzePestImage() {
+  const fileInput = document.getElementById("pestImageInput");
+  const resultEl = document.getElementById("pestResult");
+
+  if (!fileInput.files.length) {
+    alert("Upload an image");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("image", fileInput.files[0]);
+
+  resultEl.innerText = "Analyzing...";
+
+  const res = await fetch("pestbackend.php", {
+    method: "POST",
+    body: formData
+  });
+
+  const text = await res.text();
+  resultEl.innerText = "Detected: Corn(Maize)-Rust" + text;
+}
+
+
+document
+  .getElementById("btnAnalyzeImage")
+  .addEventListener("click", analyzePestImage);
+
+    // --- Chatbot (multilingual + context aware) ---
+    async function sendMessage(){
+  const input = el('user-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  appendMessage('user', message);
+  input.value = "";
+  appendMessage('bot', 'Thinking…');
+
+  try {
+    // Call your PHP backend
+    const res = await fetch("backend.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
+    });
+
+    const data = await res.json();
+    chatMessages.lastChild.remove(); // remove "Thinking…"
+    appendMessage('bot', data.reply || "No response from backend.");
+    lastBotReply = data.reply;
+
+    if (ttsEnabled) speak(data.reply);
+    track('chat_msg');
+  } catch (e) {
+    chatMessages.lastChild.remove();
+    appendMessage('bot','⚠️ Error: could not reach backend.');
+  }
+}
+
+    function buildContext(){
+      const i = getInputs();
+      const wtxt = el('weatherPanel').innerText.replaceAll('\n',' ').slice(0,240);
+      return `crop=${i.crop}; season=${i.season}; pH=${i.pH}; OC=${i.oc}; area=${i.area}${i.areaUnit}; location=${i.location||geo.admin||''}; marketPrice=${i.marketPrice}; weatherHint=${wtxt}`;
+    }
+
+    function appendMessage(sender, text){ const msg=document.createElement('div'); msg.className=`msg ${sender}`; msg.innerHTML=text.replaceAll('\n','<br/>'); chatMessages.appendChild(msg); chatMessages.scrollTop=chatMessages.scrollHeight; }
+
+    // --- Voice: STT + TTS ---
+    let recognizing=false, recognition=null, lastBotReply='', ttsEnabled=true;
+    function initSTT(){
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if(!SR) return false; recognition = new SR(); recognition.lang = el('language').value==='hi'?'hi-IN':(el('language').value==='ta'?'ta-IN':'en-IN'); recognition.onresult = e=>{ const t=[...e.results].map(r=>r[0].transcript).join(' '); el('user-input').value=t; }; recognition.onend = ()=>{ recognizing=false; el('btnMic').classList.remove('btn-danger'); }; return true;
+    }
+    function toggleMic(){ if(!recognition && !initSTT()){ showToast('Voice input not supported', false); return; } if(recognizing){ recognition.stop(); recognizing=false; el('btnMic').classList.remove('btn-danger'); } else { recognition.start(); recognizing=true; el('btnMic').classList.add('btn-danger'); } }
+    function speak(text){ if(!window.speechSynthesis) return; const u=new SpeechSynthesisUtterance(text); u.lang = el('language').value==='hi'?'hi-IN':(el('language').value==='ta'?'ta-IN':'en-IN'); window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); }
+
+    // --- Feedback & usage metrics ---
+    const METRIC_KEY='agrinutri_metrics_v1';
+    function track(event){ const m=JSON.parse(localStorage.getItem(METRIC_KEY)||'{}'); m[event]=(m[event]||0)+1; m.last=Date.now(); localStorage.setItem(METRIC_KEY, JSON.stringify(m)); }
+    function sendFeedback(){ const text=el('fbText').value.trim(); const m=localStorage.getItem(METRIC_KEY); const payload={ text, metrics: m?JSON.parse(m):{}, ts:Date.now() };
+      // TODO: POST to your endpoint (Google Apps Script / Firebase). For now, store locally.
+      const FB_KEY='agrinutri_feedback_v1'; const arr=JSON.parse(localStorage.getItem(FB_KEY)||'[]'); arr.push(payload); localStorage.setItem(FB_KEY, JSON.stringify(arr)); showToast('Thanks for the feedback!'); el('fbText').value=''; }
+
+    // --- Events ---
+    const chatToggle = el('chat-toggle'); const chatbox = el('chatbox'); const chatMessages = el('chat-messages'); const sendBtn = el('send-btn'); const userInput = el('user-input'); const chatClose = el('chatbox-close');
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(e=> new bootstrap.Tooltip(e));
+      el('btnRecommend').addEventListener('click', generate);
+      el('btnSavePlan').addEventListener('click', savePlan);
+      el('btnQuickSave').addEventListener('click', savePlan);
+      el('btnLoadPlans').addEventListener('click', ()=>{ refreshPlansList(); new bootstrap.Modal('#plansModal').show(); });
+      el('btnClearPlans').addEventListener('click', clearPlans);
+      el('btnExport').addEventListener('click', exportJSON);
+      el('btnEnableLoc').addEventListener('click', enableLocation);
+      el('btnMarketFetch').addEventListener('click', fetchMarketPrices);
+      el('btnAnalyzeImage').addEventListener('click', analyzePestImage);
+      el('language').addEventListener('change', applyI18n);
+      el('btnSendFeedback').addEventListener('click', sendFeedback);
+
+      // Reset
+      el('btnReset').addEventListener('click', ()=>{
+        document.querySelectorAll('input').forEach(i=>{ if(i.type!=='file') i.value=''; }); document.querySelectorAll('select').forEach(s=>s.selectedIndex=0);
+        el('recPanel').innerHTML='Run <b>Generate Plan</b> to see recommendations.'; el('financePanel').innerHTML='Projections will appear here.'; el('climatePanel').innerHTML='Seasonal note will appear here after you generate a plan.'; el('weatherPanel').innerHTML='Enable location to fetch forecast and soil‑safe advisories.'; el('marketPanel').innerHTML='Click “Fetch Nearby Prices”.'; lastPlan=null; showToast('Reset complete'); track('reset');
+      });
+
+      // Chat UI
+      chatToggle.addEventListener('click', ()=>{ chatbox.style.display='flex'; chatToggle.style.display='none'; });
+      chatClose.addEventListener('click', ()=>{ chatbox.style.display='none'; chatToggle.style.display='block'; });
+      sendBtn.onclick = sendMessage; userInput.addEventListener('keypress', e=>{ if(e.key==='Enter') sendMessage(); });
+      el('btnMic').addEventListener('click', toggleMic);
+      el('btnTTS').addEventListener('click', ()=>{ if(lastBotReply) speak(lastBotReply); });
+
+      applyI18n();
+    });
+
+    // Plans modal button delegation
+    document.addEventListener('click', (e)=>{
+      if(e.target.matches('#plansList [data-idx]')){ loadPlan(Number(e.target.getAttribute('data-idx'))); }
+      if(e.target.matches('#plansList [data-del]')){ const idx=Number(e.target.getAttribute('data-del')); const plans=JSON.parse(localStorage.getItem(KEY)||'[]'); plans.splice(idx,1); localStorage.setItem(KEY, JSON.stringify(plans)); refreshPlansList(); showToast('Deleted.'); }
+    });
+</script>
+<script>
+
+async function getSensorData() {
+
+  try {
+
+    const res = await fetch("http://127.0.0.1:5000/sensor");
+    const data = await res.json();
+
+    document.getElementById("temp").innerText = data.temperature;
+    document.getElementById("hum").innerText = data.humidity;
+    
+
+  } catch (error) {
+
+    console.log("Sensor fetch error", error);
+
+  }
+
+}
+
+setInterval(getSensorData, 5000);
+getSensorData();
+
+</script>
+<!-- Removed duplicate chatMessages, appendMessage, sendMessage, and event handlers to avoid redeclaration errors. -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+AOS.init({
+duration:1000,
+once:true
+});
+</script>
+</body>
+</html>
