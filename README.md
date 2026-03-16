@@ -1,2 +1,2 @@
-# farmlytics
+# Farmlytics
 Smart agriculture planning website
